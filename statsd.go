@@ -12,6 +12,11 @@ Using the client to increment a counter:
 	defer client.Close()
 	err = client.Increment("buckets", 1, 1)
 
+	go func {
+		sleep(60)
+		client.Reconnect("127.0.0.1:8125")
+	}
+
 */
 package statsd
 
@@ -176,4 +181,67 @@ func (c *Client) send(stat string, rate float64, format string, args ...interfac
 
 	_, err := fmt.Fprintf(c.buf, format, args...)
 	return err
+}
+
+
+func (c *Client) Reconnect(addr string) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	// Get current socket address as string
+	socketAddr := c.m.RemoteAddr().string
+
+	ips, err := net.LookupIP(addr)
+
+	if err != nil {
+		return err
+	}
+
+	for _, ip := range ips {
+		if ip.String() != socketAddr {
+			newConn, err := net.Dial("udp", addr)
+			if err != nil {
+				// something something log but will retry on next attempt
+				return err
+			} else {
+				c.m.Close()
+				c.m = newConn
+			}
+			break
+		}
+	}
+
+	return nil
+
+}
+
+func (c *Client) ReconnectTimeout(addr string, timeout time.Duration)) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	// Get current socket address as string
+	socketAddr := c.m.RemoteAddr().string
+
+	ips, err := net.LookupIP(addr)
+
+	if err != nil {
+		return err
+	}
+
+	for _, ip := range ips {
+		if ip.String() != socketAddr {
+			newConn, err := net.DialTimeout("udp", addr, timeout)
+			if err != nil {
+				// something something log but will retry on next attempt
+				return err
+			} else {
+				c.m.Close()
+				c.m = newConn
+			}
+			break
+		}
+	}
+
+	return nil
+
 }
