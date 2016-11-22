@@ -12,6 +12,11 @@ Using the client to increment a counter:
 	defer client.Close()
 	err = client.Increment("buckets", 1, 1)
 
+	go func {
+		sleep(60)
+		client.Reconnect("127.0.0.1:8125")
+	}
+
 */
 package statsd
 
